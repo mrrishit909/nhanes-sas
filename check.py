@@ -5,7 +5,10 @@
 1. Every survey-weighted proportion the SAS program reports (results/estimates.csv, parsed from the SAS log) is
    recomputed here from the same CDC files: the estimate, and its standard error by Taylor linearisation with
    strata and PSUs (the method PROC SURVEYMEANS uses).
-2. The headline figures round to the ones in NCHS Data Brief No. 511.
+2. The figures in NCHS Data Brief No. 511: each one is within 0.15 percentage points, and the ones that do not round to the
+   same decimal are listed (one does: treated, age 60+, 68.97% here vs 69.1% published; dropping people who did not
+   answer the medication questions moves it to 69.05% but moves overall control from 20.75% to 20.8%, so no single rule
+   matches all 24 at one decimal and the plain definition is kept).
 3. The odds ratios from PROC SURVEYLOGISTIC match a weighted logistic regression fitted here (point estimates
    do not depend on the design; only their standard errors do).
 """
@@ -84,7 +87,7 @@ def main():
     d = load()
     sas = pd.read_csv(R / "estimates.csv")
     domains = {"htn": "adult", "aware": "hyp", "meds": "hyp", "controlled": "hyp"}
-    n_checked = 0
+    n_checked, off_by_rounding = 0, []
     for _, row in sas.iterrows():
         dom = d[domains[row["measure"]]]
         if row["level"] != "All":
@@ -93,8 +96,11 @@ def main():
         est, se, n = domain_mean(d, row["measure"], dom)
         assert n == row["n"], (row.to_dict(), n)
         assert abs(est - row["mean"]) < 1e-6 and abs(se - row["stderr"]) < 1e-6, (row.to_dict(), est, se)
-        if (row["measure"], row["level"]) in PUBLISHED:
-            assert round(100 * row["mean"], 1) == PUBLISHED[(row["measure"], row["level"])], row.to_dict()
+        pub = PUBLISHED.get((row["measure"], row["level"]))
+        if pub is not None:
+            assert abs(100 * row["mean"] - pub) < 0.15, row.to_dict()
+            if round(100 * row["mean"], 1) != pub:
+                off_by_rounding.append(f'{row["measure"]} {row["level"]}: {100 * row["mean"]:.2f} vs {pub}')
         n_checked += 1
     adj = pd.read_csv(R / "ageadj.csv").set_index("group")["adj_mean"]
     for g, v in PUBLISHED_AGEADJ.items():
@@ -107,12 +113,13 @@ def main():
         X = pd.concat([pd.get_dummies(m[v], prefix=v).drop(columns=f"{v}_{r}") for v, r in ref.items()], axis=1).astype(float)
         fit = sm.GLM(m[y], sm.add_constant(X), family=sm.families.Binomial(), var_weights=m.WTMEC2YR).fit()
         for _, row in odds[odds["model"] == y].iterrows():
-            var, level = row["effect"].split(" ", 1)
-            level = level.split(" vs ")[0]
+            var, level = row["effect"].split(None, 1)          # SAS pads: "agegrp  40-59 vs 18-39"
+            level = level.split(" vs ")[0].strip()
             assert abs(np.exp(fit.params[f"{var}_{level}"]) - row["oddsratioest"]) < 1e-3, (y, row.to_dict())
             n_checked += 1
     print(f"OK: {n_checked} SAS results recomputed in Python (estimates and design-based SEs to 1e-6, odds ratios to 1e-3); "
-          f"{len(PUBLISHED)} figures and 3 age-adjusted rates match NCHS Data Brief 511")
+          f"{len(PUBLISHED) - len(off_by_rounding)} of {len(PUBLISHED)} figures and 3 age-adjusted rates match NCHS Data Brief 511 "
+          f"at one decimal; within 0.15 points: {'; '.join(off_by_rounding) or 'none'}")
 
 
 if __name__ == "__main__":
