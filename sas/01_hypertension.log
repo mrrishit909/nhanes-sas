@@ -1,0 +1,720 @@
+                                                           The SAS System
+
+1          ;*';*";*/;quit;run;
+2          OPTIONS PAGENO=MIN;
+3          %LET _CLIENTTASKLABEL='Program';
+4          %LET _CLIENTPROCESSFLOWNAME='Standalone Not In Project';
+5          %LET _CLIENTPROJECTPATH='';
+6          %LET _CLIENTPROJECTPATHHOST='';
+7          %LET _CLIENTPROJECTNAME='';
+8          %LET _SASPROGRAMFILE='';
+9          %LET _SASPROGRAMFILEHOST='';
+10         
+11         ODS _ALL_ CLOSE;
+12         OPTIONS DEV=SVG;
+13         GOPTIONS XPIXELS=0 YPIXELS=0;
+14         %macro HTML5AccessibleGraphSupported;
+15             %if %_SAS_VERCOMP_FV(9,4,4, 0,0,0) >= 0 %then ACCESSIBLE_GRAPH;
+16         %mend;
+17         FILENAME EGHTML TEMP;
+18         ODS HTML5(ID=EGHTML) FILE=EGHTML
+19             OPTIONS(BITMAP_MODE='INLINE')
+20             %HTML5AccessibleGraphSupported
+21             ENCODING='utf-8'
+22             STYLE=HtmlBlue
+23             NOGTITLE
+24             NOGFOOTNOTE
+25             GPATH=&sasworklocation
+26         ;
+NOTE: Writing HTML5(EGHTML) Body file: EGHTML
+27         
+28         options source2; filename p url
+28       ! "https://raw.githubusercontent.com/mrrishit909/nhanes-sas/331f579787d89ec8e5832a23a9c526f331dae394/sas/01_hypertension.sa
+28       ! s"; %include p;
+NOTE: %INCLUDE (level 1) file P is file 
+      https://raw.githubusercontent.com/mrrishit909/nhanes-sas/331f579787d89ec8e5832a23a9c526f331dae394/sas/01_hypertension.sas.
+29        +/*  Hypertension in US adults, NHANES August 2021 - August 2023.
+30        +    Part 1 reproduces CDC's NCHS Data Brief No. 511 with the full survey design (strata, PSUs, exam weights).
+31        +    Part 2 asks who is being missed: survey logistic models for being unaware of hypertension, and for being
+32        +    uncontrolled while on treatment.
+33        +    Ran in SAS Enterprise Guide (SAS 9.4) on USF's virtual desktop; the log is sas/01_hypertension.log. Lines starting
+34        +    CSV| in the log are the results; the repository's check.py recomputes them in Python.                        */
+35        +
+36        +options nodate nonumber validvarname=v7;
+37        +%put NOTE: SAS &sysvlong on &sysscp &sysscpl;
+NOTE: SAS 9.04.01M9P060425 on WIN X64_SRV+
+38        +
+39        +/* 1. Read the five CDC transport files straight from the web */
+40        +%macro get(f);
+41        +  filename f_&f temp;
+42        +  proc http url="https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/&f..xpt" out=f_&f; run;
+43        +  libname x_&f xport "%sysfunc(pathname(f_&f))";
+44        +  proc sort data=x_&f..&f out=&f; by seqn; run;
+45        +%mend;
+46        +%get(DEMO_L) %get(BPXO_L) %get(BPQ_L) %get(BMX_L) %get(HIQ_L)
+
+NOTE: 200 OK
+NOTE: PROCEDURE HTTP used (Total process time):
+      real time           0.09 seconds
+      cpu time            0.03 seconds
+      
+                                                           The SAS System
+
+
+NOTE: Libref X_DEMO_L was successfully assigned as follows: 
+      Engine:        XPORT 
+      Physical Name: C:\Users\<user>\AppData\Roaming\SAS\EnterpriseGuide\EGTEMP\SEG-19996-b8c5806e\contents\SAS Temporary 
+      Files\_TD14676_AVD-Stat26F-3_\#LN00281
+
+NOTE: There were 11933 observations read from the data set X_DEMO_L.DEMO_L.
+NOTE: The data set WORK.DEMO_L has 11933 observations and 27 variables.
+NOTE: PROCEDURE SORT used (Total process time):
+      real time           0.04 seconds
+      cpu time            0.04 seconds
+      
+
+
+NOTE: 200 OK
+NOTE: PROCEDURE HTTP used (Total process time):
+      real time           0.02 seconds
+      cpu time            0.01 seconds
+      
+
+NOTE: Libref X_BPXO_L was successfully assigned as follows: 
+      Engine:        XPORT 
+      Physical Name: C:\Users\<user>\AppData\Roaming\SAS\EnterpriseGuide\EGTEMP\SEG-19996-b8c5806e\contents\SAS Temporary 
+      Files\_TD14676_AVD-Stat26F-3_\#LN00282
+
+NOTE: There were 7801 observations read from the data set X_BPXO_L.BPXO_L.
+NOTE: The data set WORK.BPXO_L has 7801 observations and 12 variables.
+NOTE: PROCEDURE SORT used (Total process time):
+      real time           0.02 seconds
+      cpu time            0.01 seconds
+      
+
+
+NOTE: 200 OK
+NOTE: PROCEDURE HTTP used (Total process time):
+      real time           0.02 seconds
+      cpu time            0.00 seconds
+      
+
+NOTE: Libref X_BPQ_L was successfully assigned as follows: 
+      Engine:        XPORT 
+      Physical Name: C:\Users\<user>\AppData\Roaming\SAS\EnterpriseGuide\EGTEMP\SEG-19996-b8c5806e\contents\SAS Temporary 
+      Files\_TD14676_AVD-Stat26F-3_\#LN00283
+
+NOTE: There were 8501 observations read from the data set X_BPQ_L.BPQ_L.
+NOTE: The data set WORK.BPQ_L has 8501 observations and 6 variables.
+NOTE: PROCEDURE SORT used (Total process time):
+      real time           0.02 seconds
+      cpu time            0.00 seconds
+      
+
+
+NOTE: 200 OK
+NOTE: PROCEDURE HTTP used (Total process time):
+      real time           0.02 seconds
+      cpu time            0.00 seconds
+      
+
+                                                           The SAS System
+
+NOTE: Libref X_BMX_L was successfully assigned as follows: 
+      Engine:        XPORT 
+      Physical Name: C:\Users\<user>\AppData\Roaming\SAS\EnterpriseGuide\EGTEMP\SEG-19996-b8c5806e\contents\SAS Temporary 
+      Files\_TD14676_AVD-Stat26F-3_\#LN00284
+
+NOTE: There were 8860 observations read from the data set X_BMX_L.BMX_L.
+NOTE: The data set WORK.BMX_L has 8860 observations and 22 variables.
+NOTE: PROCEDURE SORT used (Total process time):
+      real time           0.03 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: 200 OK
+NOTE: PROCEDURE HTTP used (Total process time):
+      real time           0.02 seconds
+      cpu time            0.01 seconds
+      
+
+NOTE: Libref X_HIQ_L was successfully assigned as follows: 
+      Engine:        XPORT 
+      Physical Name: C:\Users\<user>\AppData\Roaming\SAS\EnterpriseGuide\EGTEMP\SEG-19996-b8c5806e\contents\SAS Temporary 
+      Files\_TD14676_AVD-Stat26F-3_\#LN00285
+
+NOTE: There were 11933 observations read from the data set X_HIQ_L.HIQ_L.
+NOTE: The data set WORK.HIQ_L has 11933 observations and 11 variables.
+NOTE: PROCEDURE SORT used (Total process time):
+      real time           0.03 seconds
+      cpu time            0.01 seconds
+      
+
+47        +
+48        +/* 2. One analysis file. Everyone stays in it: subgroups are domains, never subsets, so standard errors are right. */
+49        +data nh;
+50        +  merge demo_l(in=in_demo) bpxo_l bpq_l bmx_l hiq_l;
+51        +  by seqn;
+52        +  if in_demo;
+53        +  sbp = mean(of bpxosy1-bpxosy3);                     /* average of up to three oscillometric readings */
+54        +  dbp = mean(of bpxodi1-bpxodi3);
+55        +  adult = (ridageyr >= 18 and sbp > . and dbp > . and wtmec2yr > 0 and ridexprg ne 1);   /* as the data brief */
+56        +  meds = (bpq150 = 1);
+57        +  htn = (sbp >= 130 or dbp >= 80 or meds);            /* 2017 ACC/AHA threshold, as the data brief */
+58        +  if bpq020 in (1, 2) then aware = (bpq020 = 1);      /* don't know / refused stay missing */
+59        +  controlled = (sbp < 130 and dbp < 80);
+60        +  hyp = (adult and htn);
+61        +  treated = (hyp and meds);
+62        +  if hyp and aware ne . then unaware = 1 - aware;
+63        +  if treated then uncontrolled = 1 - controlled;
+64        +  length agegrp $5 sex $5 race $11 income $7 insured $7 bmi $7;
+65        +  if 18 <= ridageyr < 40 then agegrp = '18-39'; else if 40 <= ridageyr < 60 then agegrp = '40-59'; else agegrp = '60+';
+66        +  sex = ifc(riagendr = 1, 'Men', 'Women');
+67        +  select (ridreth3);
+68        +    when (1, 2) race = 'Hispanic';
+69        +    when (3)    race = 'White';
+70        +    when (4)    race = 'Black';
+71        +    when (6)    race = 'Asian';
+72        +    otherwise   race = 'Other';
+73        +  end;
+                                                           The SAS System
+
+74        +  /* NHANES 2021-2023 has 15 strata and 30 PSUs: 15 design degrees of freedom, so the models keep categories few
+75        +     (12 parameters) and leave unknown values out rather than modelling them */
+76        +  if indfmpir > . then income = ifc(indfmpir < 2, '<2x', ifc(indfmpir < 4, '2-4x', '4x+'));
+77        +  if hiq011 in (1, 2) then insured = ifc(hiq011 = 1, 'yes', 'no');
+78        +  if bmxbmi > . then bmi = ifc(bmxbmi < 25, '<25', ifc(bmxbmi < 30, '25-30', '30+'));
+79        +run;
+
+NOTE: Missing values were generated as a result of performing an operation on missing values.
+      Each place is given by: (Number of times) at (Line):(Column).
+      4415 at 53:9   4415 at 54:9   
+NOTE: There were 11933 observations read from the data set WORK.DEMO_L.
+NOTE: There were 7801 observations read from the data set WORK.BPXO_L.
+NOTE: There were 8501 observations read from the data set WORK.BPQ_L.
+NOTE: There were 8860 observations read from the data set WORK.BMX_L.
+NOTE: There were 11933 observations read from the data set WORK.HIQ_L.
+NOTE: The data set WORK.NH has 11933 observations and 91 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.03 seconds
+      cpu time            0.03 seconds
+      
+
+80        +
+81        +/* 3. Survey-weighted proportions, one domain request per call so every output table has the same shape */
+82        +%macro est(var, dom, by, out);
+83        +  ods output domain=&out;
+84        +  proc surveymeans data=nh nobs mean stderr clm nomcar;     /* NOBS: N= would be the population-size option */
+85        +    strata sdmvstra; cluster sdmvpsu; weight wtmec2yr;
+86        +    var &var;
+87        +    domain &dom%if %length(&by) %then *&by;;
+88        +  run;
+89        +  data &out; set &out; where &dom = 1; length level $11 measure $10; measure = "&var";
+90        +    %if %length(&by) = 0 %then level = 'All';
+91        +    %else level = catx(' ', %sysfunc(tranwrd(&by, *, %str(,))));;      /* sex*agegrp -> catx(' ', sex, agegrp) */
+92        +    keep measure level n mean stderr lowerclmean upperclmean;
+93        +  run;
+94        +%mend;
+95        +%est(htn, adult, , p0)        %est(htn, adult, sex, p1)        %est(htn, adult, agegrp, p2)    %est(htn, adult,
+95       !+sex*agegrp, p3)
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.P0 has 2 observations and 8 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: There were 1 observations read from the data set WORK.P0.
+      WHERE adult=1;
+NOTE: The data set WORK.P0 has 1 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.P1 has 4 observations and 9 variables.
+                                                           The SAS System
+
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.06 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: There were 2 observations read from the data set WORK.P1.
+      WHERE adult=1;
+NOTE: The data set WORK.P1 has 2 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: Only one cluster in a stratum for adult*agegrp domains for variable(s) htn. The estimate of variance for htn will omit this 
+      stratum.
+NOTE: The data set WORK.P2 has 6 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+      cpu time            0.04 seconds
+      
+
+
+NOTE: There were 3 observations read from the data set WORK.P2.
+      WHERE adult=1;
+NOTE: The data set WORK.P2 has 3 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: Only one cluster in a stratum for adult*sex*agegrp domains for variable(s) htn. The estimate of variance for htn will omit 
+      this stratum.
+NOTE: The data set WORK.P3 has 12 observations and 10 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.06 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: There were 6 observations read from the data set WORK.P3.
+      WHERE adult=1;
+NOTE: The data set WORK.P3 has 6 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+96        +%est(aware, hyp, , a0)        %est(aware, hyp, sex, a1)        %est(aware, hyp, agegrp, a2)
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.A0 has 2 observations and 8 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+                                                           The SAS System
+
+      cpu time            0.01 seconds
+      
+
+
+NOTE: There were 1 observations read from the data set WORK.A0.
+      WHERE hyp=1;
+NOTE: The data set WORK.A0 has 1 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.01 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.A1 has 4 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+      cpu time            0.04 seconds
+      
+
+
+NOTE: There were 2 observations read from the data set WORK.A1.
+      WHERE hyp=1;
+NOTE: The data set WORK.A1 has 2 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.01 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.A2 has 6 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.06 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: There were 3 observations read from the data set WORK.A2.
+      WHERE hyp=1;
+NOTE: The data set WORK.A2 has 3 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+97        +%est(meds, hyp, , t0)         %est(meds, hyp, sex, t1)         %est(meds, hyp, agegrp, t2)
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.T0 has 2 observations and 8 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+      cpu time            0.06 seconds
+      
+
+
+NOTE: There were 1 observations read from the data set WORK.T0.
+      WHERE hyp=1;
+                                                           The SAS System
+
+NOTE: The data set WORK.T0 has 1 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.01 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.T1 has 4 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: There were 2 observations read from the data set WORK.T1.
+      WHERE hyp=1;
+NOTE: The data set WORK.T1 has 2 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.01 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.T2 has 6 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.06 seconds
+      cpu time            0.04 seconds
+      
+
+
+NOTE: There were 3 observations read from the data set WORK.T2.
+      WHERE hyp=1;
+NOTE: The data set WORK.T2 has 3 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+98        +%est(controlled, hyp, , c0)   %est(controlled, hyp, sex, c1)   %est(controlled, hyp, agegrp, c2)
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.C0 has 2 observations and 8 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.04 seconds
+      cpu time            0.03 seconds
+      
+
+
+NOTE: There were 1 observations read from the data set WORK.C0.
+      WHERE hyp=1;
+NOTE: The data set WORK.C0 has 1 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+                                                           The SAS System
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.C1 has 4 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.05 seconds
+      cpu time            0.04 seconds
+      
+
+
+NOTE: There were 2 observations read from the data set WORK.C1.
+      WHERE hyp=1;
+NOTE: The data set WORK.C1 has 2 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+
+NOTE: Due to nonpositive weights, 3073 observation(s) were deleted.
+NOTE: The data set WORK.C2 has 6 observations and 9 variables.
+NOTE: PROCEDURE SURVEYMEANS used (Total process time):
+      real time           0.06 seconds
+      cpu time            0.06 seconds
+      
+
+
+NOTE: There were 3 observations read from the data set WORK.C2.
+      WHERE hyp=1;
+NOTE: The data set WORK.C2 has 3 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.01 seconds
+      
+
+99        +data estimates; length measure $10 level $11; set p0 p1 p2 a0 a1 a2 t0 t1 t2 c0 c1 c2; run;
+
+NOTE: There were 1 observations read from the data set WORK.P0.
+NOTE: There were 2 observations read from the data set WORK.P1.
+NOTE: There were 3 observations read from the data set WORK.P2.
+NOTE: There were 1 observations read from the data set WORK.A0.
+NOTE: There were 2 observations read from the data set WORK.A1.
+NOTE: There were 3 observations read from the data set WORK.A2.
+NOTE: There were 1 observations read from the data set WORK.T0.
+NOTE: There were 2 observations read from the data set WORK.T1.
+NOTE: There were 3 observations read from the data set WORK.T2.
+NOTE: There were 1 observations read from the data set WORK.C0.
+NOTE: There were 2 observations read from the data set WORK.C1.
+NOTE: There were 3 observations read from the data set WORK.C2.
+NOTE: The data set WORK.ESTIMATES has 24 observations and 7 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.03 seconds
+      
+
+100       +
+101       +/* 4. Age-adjusted prevalence: direct standardisation to the 2000 US population (NCHS weights, ages 18+) */
+102       +data agegroups;
+103       +  set p2(in=all) p3;
+                                                           The SAS System
+
+104       +  length group $5;
+105       +  group = ifc(all, 'All', scan(level, 1, ' '));
+106       +  age = ifc(all, level, scan(level, 2, ' '));
+107       +  w = ifn(age = '18-39', 0.420263, ifn(age = '40-59', 0.357202, 0.222535));
+108       +run;
+
+NOTE: There were 3 observations read from the data set WORK.P2.
+NOTE: There were 6 observations read from the data set WORK.P3.
+NOTE: The data set WORK.AGEGROUPS has 9 observations and 10 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.00 seconds
+      cpu time            0.00 seconds
+      
+
+109       +proc sql;
+110       +  create table ageadj as select group, sum(w * mean) as adj_mean, sqrt(sum(w * w * stderr * stderr)) as adj_se
+111       +    from agegroups group by group;
+NOTE: Table WORK.AGEADJ created, with 3 rows and 3 columns.
+
+112       +quit;
+NOTE: PROCEDURE SQL used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.03 seconds
+      
+
+113       +
+114       +/* 5. Who is being missed: unaware of their hypertension (all with it), and uncontrolled (those on treatment) */
+115       +%macro model(y, dom, out);
+116       +  ods output oddsratios=&out;
+117       +  proc surveylogistic data=nh nomcar;
+118       +    strata sdmvstra; cluster sdmvpsu; weight wtmec2yr;
+119       +    domain &dom;
+120       +    class agegrp(ref='18-39') sex(ref='Women') race(ref='White') income(ref='4x+') insured(ref='yes') bmi(ref='<25') /
+120      !+param=ref;
+121       +    model &y(event='1') = agegrp sex race income insured bmi;
+122       +  run;
+123       +  data &out; set &out; where &dom = 1; length model $12; model = "&y"; keep model effect oddsratioest lowercl uppercl;
+123      !+run;
+124       +%mend;
+125       +%model(unaware, hyp, or1)  %model(uncontrolled, treated, or2)
+
+NOTE: PROC SURVEYLOGISTIC is modeling the probability that unaware=1.
+NOTE: Convergence criterion (GCONV=1E-8) satisfied.
+NOTE: All observations were omitted due to missing values or non-positive weights in domain hyp=0.
+NOTE: PROC SURVEYLOGISTIC is modeling the probability that unaware=1.
+NOTE: Convergence criterion (GCONV=1E-8) satisfied.
+NOTE: The data set WORK.OR1 has 24 observations and 6 variables.
+NOTE: PROCEDURE SURVEYLOGISTIC used (Total process time):
+      real time           0.49 seconds
+      cpu time            0.46 seconds
+      
+
+
+NOTE: There were 12 observations read from the data set WORK.OR1.
+      WHERE hyp=1;
+NOTE: The data set WORK.OR1 has 12 observations and 5 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+                                                           The SAS System
+
+      cpu time            0.00 seconds
+      
+
+
+NOTE: PROC SURVEYLOGISTIC is modeling the probability that uncontrolled=1.
+NOTE: Convergence criterion (GCONV=1E-8) satisfied.
+NOTE: All observations were omitted due to missing values or non-positive weights in domain treated=0.
+NOTE: PROC SURVEYLOGISTIC is modeling the probability that uncontrolled=1.
+NOTE: Convergence criterion (GCONV=1E-8) satisfied.
+NOTE: The data set WORK.OR2 has 24 observations and 6 variables.
+NOTE: PROCEDURE SURVEYLOGISTIC used (Total process time):
+      real time           0.49 seconds
+      cpu time            0.40 seconds
+      
+
+
+NOTE: There were 12 observations read from the data set WORK.OR2.
+      WHERE treated=1;
+NOTE: The data set WORK.OR2 has 12 observations and 5 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+126       +data odds; length model $12 effect $40; set or1 or2; run;
+
+NOTE: There were 12 observations read from the data set WORK.OR1.
+NOTE: There were 12 observations read from the data set WORK.OR2.
+NOTE: The data set WORK.ODDS has 24 observations and 5 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+127       +
+128       +/* 6. Results to the log as CSV lines (copied into results/ in the repository) */
+129       +data _null_;
+130       +  length line $300;
+131       +  set estimates(in=e) ageadj(in=a) odds(in=o);
+132       +  if e then line = catx('|', 'CSV', 'estimate', measure, level, n, put(mean, 10.8), put(stderr, 10.8), put(lowerclmean,
+132      !+10.8), put(upperclmean, 10.8));
+133       +  if a then line = catx('|', 'CSV', 'ageadj', group, put(adj_mean, 10.8), put(adj_se, 10.8));
+134       +  if o then line = catx('|', 'CSV', 'odds', model, effect, put(oddsratioest, 10.6), put(lowercl, 10.6), put(uppercl,
+134      !+10.6));
+135       +  putlog line;
+136       +run;
+
+CSV|estimate|htn|All|6084|0.47664394|0.01055729|0.45414161|0.49914626
+CSV|estimate|htn|Men|2776|0.50840912|0.01111972|0.48470799|0.53211025
+CSV|estimate|htn|Women|3308|0.44579568|0.01474151|0.41437490|0.47721646
+CSV|estimate|htn|18-39|1712|0.23433689|0.01552845|0.20123879|0.26743499
+CSV|estimate|htn|40-59|1681|0.52461620|0.01356791|0.49569689|0.55353551
+CSV|estimate|htn|60+|2691|0.71568036|0.01282696|0.68834034|0.74302039
+CSV|estimate|aware|All|3240|0.59172366|0.01256258|0.56494715|0.61850017
+CSV|estimate|aware|Men|1575|0.55167104|0.01288175|0.52421425|0.57912784
+CSV|estimate|aware|Women|1665|0.63605004|0.01573989|0.60250126|0.66959883
+CSV|estimate|aware|18-39|399|0.27185215|0.02785512|0.21248036|0.33122394
+CSV|estimate|aware|40-59|897|0.56702695|0.02437943|0.51506342|0.61899047
+                                                           The SAS System
+
+CSV|estimate|aware|60+|1944|0.73693724|0.01281465|0.70962347|0.76425101
+CSV|estimate|meds|All|3242|0.51160466|0.01173820|0.48658527|0.53662404
+CSV|estimate|meds|Men|1577|0.46702822|0.01474277|0.43560476|0.49845168
+CSV|estimate|meds|Women|1665|0.56097455|0.01429900|0.53049695|0.59145215
+CSV|estimate|meds|18-39|399|0.13931140|0.01948324|0.09778386|0.18083894
+CSV|estimate|meds|40-59|897|0.47114954|0.01989975|0.42873424|0.51356485
+CSV|estimate|meds|60+|1946|0.68970279|0.01245666|0.66315204|0.71625353
+CSV|estimate|controlled|All|3242|0.20739293|0.00929602|0.18757893|0.22720693
+CSV|estimate|controlled|Men|1577|0.18909730|0.01157838|0.16441857|0.21377603
+CSV|estimate|controlled|Women|1665|0.22765595|0.01435479|0.19705945|0.25825246
+CSV|estimate|controlled|18-39|399|0.04499129|0.00852529|0.02682006|0.06316252
+CSV|estimate|controlled|40-59|897|0.18083163|0.01526724|0.14829027|0.21337299
+CSV|estimate|controlled|60+|1946|0.29210952|0.01737829|0.25506856|0.32915047
+CSV|ageadj|All|0.44514101|0.00861542
+CSV|ageadj|Men|0.48783935|0.01219374
+CSV|ageadj|Women|0.40132106|0.01024465
+CSV|odds|unaware|agegrp  40-59 vs 18-39|0.231710|0.153900|0.348860
+CSV|odds|unaware|agegrp  60+   vs 18-39|0.097460|0.066025|0.143862
+CSV|odds|unaware|sex     Men vs Women|1.147967|0.957382|1.376491
+CSV|odds|unaware|race    Asian    vs White|0.574360|0.295803|1.115235
+CSV|odds|unaware|race    Black    vs White|0.546450|0.390396|0.764883
+CSV|odds|unaware|race    Hispanic vs White|0.823898|0.610416|1.112042
+CSV|odds|unaware|race    Other    vs White|0.904905|0.543420|1.506851
+CSV|odds|unaware|income  2-4x vs 4x+|0.886168|0.733488|1.070629
+CSV|odds|unaware|income  <2x  vs 4x+|0.606670|0.484716|0.759306
+CSV|odds|unaware|insured no vs yes|2.198318|1.512558|3.194985
+CSV|odds|unaware|bmi     25-30 vs <25|0.713719|0.508776|1.001217
+CSV|odds|unaware|bmi     30+   vs <25|0.452744|0.332882|0.615766
+CSV|odds|uncontrolled|agegrp  40-59 vs 18-39|0.549539|0.235964|1.279826
+CSV|odds|uncontrolled|agegrp  60+   vs 18-39|0.401965|0.192289|0.840276
+CSV|odds|uncontrolled|sex     Men vs Women|1.054457|0.768018|1.447726
+CSV|odds|uncontrolled|race    Asian    vs White|0.524499|0.232294|1.184270
+CSV|odds|uncontrolled|race    Black    vs White|1.462232|0.894184|2.391142
+CSV|odds|uncontrolled|race    Hispanic vs White|1.009061|0.602591|1.689711
+CSV|odds|uncontrolled|race    Other    vs White|0.810036|0.467372|1.403933
+CSV|odds|uncontrolled|income  2-4x vs 4x+|1.318336|0.947044|1.835194
+CSV|odds|uncontrolled|income  <2x  vs 4x+|1.116802|0.799208|1.560603
+CSV|odds|uncontrolled|insured no vs yes|1.115507|0.461735|2.694958
+CSV|odds|uncontrolled|bmi     25-30 vs <25|0.891150|0.663592|1.196743
+CSV|odds|uncontrolled|bmi     30+   vs <25|0.697034|0.493181|0.985149
+NOTE: There were 24 observations read from the data set WORK.ESTIMATES.
+NOTE: There were 3 observations read from the data set WORK.AGEADJ.
+NOTE: There were 24 observations read from the data set WORK.ODDS.
+NOTE: DATA statement used (Total process time):
+      real time           0.00 seconds
+      cpu time            0.00 seconds
+      
+
+137       +
+138       +/* 7. Charts */
+139       +data cascade;
+140       +  set estimates(where=(level in ('18-39', '40-59', '60+')));
+141       +  length stage $26;
+142       +  select (measure);
+143       +    when ('htn')        stage = '1 Has it (of all adults)';
+144       +    when ('aware')      stage = '2 Aware (of those with it)';
+145       +    when ('meds')       stage = '3 Treated';
+146       +    when ('controlled') stage = '4 Controlled';
+                                                           The SAS System
+
+147       +  end;
+148       +  pct = 100 * mean; lo = 100 * lowerclmean; hi = 100 * upperclmean;
+149       +  format pct 5.1;
+150       +run;
+
+NOTE: There were 12 observations read from the data set WORK.ESTIMATES.
+      WHERE level in ('18-39', '40-59', '60+');
+NOTE: The data set WORK.CASCADE has 12 observations and 11 variables.
+NOTE: DATA statement used (Total process time):
+      real time           0.01 seconds
+      cpu time            0.00 seconds
+      
+
+151       +proc sgplot data=cascade;
+152       +  title 'Hypertension care cascade by age, US adults, NHANES 2021-2023';
+153       +  vbarparm category=level response=pct / group=stage groupdisplay=cluster limitlower=lo limitupper=hi datalabel;
+154       +  xaxis label='Age'; yaxis label='Percent (95% CI)' max=100;
+155       +run;
+
+NOTE: PROCEDURE SGPLOT used (Total process time):
+      real time           0.54 seconds
+      cpu time            0.11 seconds
+      
+NOTE: There were 12 observations read from the data set WORK.CASCADE.
+
+156       +proc sgpanel data=odds;
+157       +  title 'Who is missed: adjusted odds ratios (95% CI)';
+158       +  panelby model / columns=2 novarname;
+159       +  scatter y=effect x=oddsratioest / xerrorlower=lowercl xerrorupper=uppercl;
+160       +  refline 1 / axis=x;
+161       +  colaxis type=log label='Odds ratio (log scale)'; rowaxis display=(nolabel) discreteorder=data;
+162       +run;
+
+NOTE: PROCEDURE SGPANEL used (Total process time):
+      real time           0.49 seconds
+      cpu time            0.11 seconds
+      
+NOTE: Some of the tick values have been thinned.
+NOTE: Some of the tick values have been thinned.
+NOTE: There were 24 observations read from the data set WORK.ODDS.
+
+163       +title;
+NOTE: %INCLUDE (level 1) ending.
+164        
+165        %LET _CLIENTTASKLABEL=;
+166        %LET _CLIENTPROCESSFLOWNAME=;
+167        %LET _CLIENTPROJECTPATH=;
+168        %LET _CLIENTPROJECTPATHHOST=;
+169        %LET _CLIENTPROJECTNAME=;
+170        %LET _SASPROGRAMFILE=;
+171        %LET _SASPROGRAMFILEHOST=;
+172        
+173        ;*';*";*/;quit;run;
+174        ODS _ALL_ CLOSE;
+175        
+176        
+177        QUIT; RUN;
+178        
