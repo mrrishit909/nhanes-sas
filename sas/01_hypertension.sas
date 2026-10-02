@@ -71,7 +71,7 @@ run;
 data estimates; length measure $10 level $11; set p0 p1 p2 a0 a1 a2 t0 t1 t2 c0 c1 c2; run;
 
 /* 4. Age-adjusted prevalence: direct standardisation to the 2000 US population (NCHS weights, ages 18+) */
-data ageadj;
+data agegroups;
   set p2(in=all) p3;
   length group $5;
   group = ifc(all, 'All', scan(level, 1, ' '));
@@ -80,7 +80,7 @@ data ageadj;
 run;
 proc sql;
   create table ageadj as select group, sum(w * mean) as adj_mean, sqrt(sum(w * w * stderr * stderr)) as adj_se
-    from ageadj group by group;
+    from agegroups group by group;
 quit;
 
 /* 5. Who is being missed: unaware of their hypertension (all with it), and uncontrolled (those on treatment) */
