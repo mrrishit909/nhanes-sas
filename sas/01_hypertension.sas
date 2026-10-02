@@ -7,6 +7,19 @@
 
 options nodate nonumber validvarname=v7;
 
+/* Where results go: Windows App's file-transfer folder, which the browser downloads to the user's computer.
+   If it isn't there (another SAS environment), results stay in WORK and only the log lines carry them. */
+%let out = \\tsclient\Remote Desktop Virtual Drive\Downloads;
+%let have_out = %sysfunc(fileexist(&out));
+%put NOTE: output folder &out exists=&have_out;
+%macro tofile(start);
+  %if &have_out %then %do;
+    %if &start %then %do; proc printto log="&out\nhanes_sas.log" new; run; %end;
+    %else %do; proc printto; run; %end;
+  %end;
+%mend;
+%tofile(1)
+
 /* 1. Read the five CDC transport files straight from the web */
 %macro get(f);
   filename f_&f temp;
@@ -105,6 +118,22 @@ data _null_;
   if o then line = catx('|', 'CSV', 'odds', model, effect, put(oddsratioest, 10.6), put(lowercl, 10.6), put(uppercl, 10.6));
   putlog line;
 run;
+%macro csvfile;
+  %if &have_out %then %do;
+    data _null_;
+      length line $300;
+      file "&out\sas_results.csv";
+      set estimates(in=e) ageadj(in=a) odds(in=o);
+      if e then line = catx('|', 'CSV', 'estimate', measure, level, n, put(mean, 10.8), put(stderr, 10.8), put(lowerclmean, 10.8), put(upperclmean, 10.8));
+      if a then line = catx('|', 'CSV', 'ageadj', group, put(adj_mean, 10.8), put(adj_se, 10.8));
+      if o then line = catx('|', 'CSV', 'odds', model, effect, put(oddsratioest, 10.6), put(lowercl, 10.6), put(uppercl, 10.6));
+      put line;
+    run;
+    ods listing gpath="&out" style=htmlblue;
+    ods graphics / reset imagename="nhanes_chart" outputfmt=png width=1000px height=520px;
+  %end;
+%mend;
+%csvfile
 
 /* 7. Charts */
 data cascade;
@@ -132,3 +161,8 @@ proc sgpanel data=odds;
   colaxis type=log label='Odds ratio (log scale)'; rowaxis display=(nolabel) discreteorder=data;
 run;
 title;
+%macro close_out;
+  %if &have_out %then %do; ods listing close; ods graphics / reset; %end;
+%mend;
+%close_out
+%tofile(0)
