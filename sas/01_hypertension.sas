@@ -42,16 +42,17 @@ data nh;
     when (6)    race = 'Asian';
     otherwise   race = 'Other';
   end;
-  if indfmpir = . then income = 'unknown'; else if indfmpir < 1 then income = '<1x';
-  else if indfmpir < 2 then income = '1-2x'; else if indfmpir < 4 then income = '2-4x'; else income = '4x+';
-  if hiq011 = 1 then insured = 'yes'; else if hiq011 = 2 then insured = 'no'; else insured = 'unknown';
-  if bmxbmi = . then bmi = 'unknown'; else if bmxbmi < 25 then bmi = '<25'; else if bmxbmi < 30 then bmi = '25-30'; else bmi = '30+';
+  /* NHANES 2021-2023 has 15 strata and 30 PSUs: 15 design degrees of freedom, so the models keep categories few
+     (12 parameters) and leave unknown values out rather than modelling them */
+  if indfmpir > . then income = ifc(indfmpir < 2, '<2x', ifc(indfmpir < 4, '2-4x', '4x+'));
+  if hiq011 in (1, 2) then insured = ifc(hiq011 = 1, 'yes', 'no');
+  if bmxbmi > . then bmi = ifc(bmxbmi < 25, '<25', ifc(bmxbmi < 30, '25-30', '30+'));
 run;
 
 /* 3. Survey-weighted proportions, one domain request per call so every output table has the same shape */
 %macro est(var, dom, by, out);
   ods output domain=&out;
-  proc surveymeans data=nh mean stderr clm nomcar;
+  proc surveymeans data=nh n mean stderr clm nomcar;
     strata sdmvstra; cluster sdmvpsu; weight wtmec2yr;
     var &var;
     domain &dom%if %length(&by) %then *&by;;
@@ -123,7 +124,7 @@ proc sgplot data=cascade;
   vbarparm category=level response=pct / group=stage groupdisplay=cluster limitlower=lo limitupper=hi datalabel;
   xaxis label='Age'; yaxis label='Percent (95% CI)' max=100;
 run;
-proc sgpanel data=odds(where=(index(effect, 'unknown') = 0));
+proc sgpanel data=odds;
   title 'Who is missed: adjusted odds ratios (95% CI)';
   panelby model / columns=2 novarname;
   scatter y=effect x=oddsratioest / xerrorlower=lowercl xerrorupper=uppercl;
