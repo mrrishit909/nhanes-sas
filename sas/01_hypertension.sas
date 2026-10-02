@@ -52,7 +52,7 @@ run;
 /* 3. Survey-weighted proportions, one domain request per call so every output table has the same shape */
 %macro est(var, dom, by, out);
   ods output domain=&out;
-  proc surveymeans data=nh n mean stderr clm nomcar;
+  proc surveymeans data=nh nobs mean stderr clm nomcar;     /* NOBS: N= would be the population-size option */
     strata sdmvstra; cluster sdmvpsu; weight wtmec2yr;
     var &var;
     domain &dom%if %length(&by) %then *&by;;
